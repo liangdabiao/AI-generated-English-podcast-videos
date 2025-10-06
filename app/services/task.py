@@ -257,26 +257,71 @@ def generate_podcast_subtitle(task_id, params, podcast_script, audio_file, subti
         # 根据配置选择字幕生成方式
         subtitle_fallback = False
         if subtitle_provider == "edge":
-            # 使用Edge TTS从播客脚本生成字幕
-            logger.info("generating podcast subtitle from script using Edge TTS")
-            full_podcast_text = ""
-            for i, turn in enumerate(podcast_script):
-                full_podcast_text += f"说话人1: {turn.speaker_1}\n"
-                full_podcast_text += f"说话人2: {turn.speaker_2}\n"
+            # 为播客创建简单字幕文件
+            logger.info("generating podcast subtitle from script")
+            try:
+                # 创建基本字幕文件，将对话按行分配时间
+                with open(subtitle_path, "w", encoding="utf-8") as f:
+                    idx = 1
+                    current_time = 0.0
 
-            # 创建字幕文件（从脚本生成）
-            from app.services import voice
-            # 创建一个空的sub_maker对象
-            sub_maker = None
-            voice.create_subtitle(
-                text=full_podcast_text,
-                sub_maker=sub_maker,
-                subtitle_file=subtitle_path
-            )
+                    for i, turn in enumerate(podcast_script):
+                        logger.info(f"processing dialogue turn {i+1}")
 
-            if not os.path.exists(subtitle_path):
+                        # 处理说话人1
+                        if turn.speaker_1.strip():
+                            speaker1_text = turn.speaker_1.strip()
+                            duration = max(len(speaker1_text) * 0.1, 2.0)  # 估算每个字符0.1秒，最少2秒
+                            start_time = current_time
+                            end_time = current_time + duration
+
+                            # 格式化为SRT时间格式
+                            start_str = utils.time_convert_seconds_to_hmsm(start_time).replace(".", ",")
+                            end_str = utils.time_convert_seconds_to_hmsm(end_time).replace(".", ",")
+
+                            logger.debug(f"Speaker 1: {start_str} --> {end_str}, text: {speaker1_text[:50]}...")
+
+                            f.write(f"{idx}\n")
+                            f.write(f"{start_str} --> {end_str}\n")
+                            f.write(f"[说话人1] {speaker1_text}\n\n")
+
+                            idx += 1
+                            current_time = end_time + 1.0  # 添加1秒停顿
+
+                        # 处理说话人2
+                        if turn.speaker_2.strip():
+                            speaker2_text = turn.speaker_2.strip()
+                            duration = max(len(speaker2_text) * 0.1, 2.0)
+                            start_time = current_time
+                            end_time = current_time + duration
+
+                            start_str = utils.time_convert_seconds_to_hmsm(start_time).replace(".", ",")
+                            end_str = utils.time_convert_seconds_to_hmsm(end_time).replace(".", ",")
+
+                            logger.debug(f"Speaker 2: {start_str} --> {end_str}, text: {speaker2_text[:50]}...")
+
+                            f.write(f"{idx}\n")
+                            f.write(f"{start_str} --> {end_str}\n")
+                            f.write(f"[说话人2] {speaker2_text}\n\n")
+
+                            idx += 1
+                            current_time = end_time + 1.0
+
+                logger.info(f"basic podcast subtitle created successfully: {subtitle_path} with {idx-1} entries")
+
+                # 验证文件是否创建成功
+                if os.path.exists(subtitle_path) and os.path.getsize(subtitle_path) > 0:
+                    logger.info("subtitle file validation passed")
+                    subtitle_fallback = False  # 确保不回退到Whisper
+                else:
+                    logger.warning("subtitle file validation failed, will fallback to whisper")
+                    subtitle_fallback = True
+
+            except Exception as e:
+                logger.error(f"failed to create basic subtitle: {str(e)}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
                 subtitle_fallback = True
-                logger.warning("failed to generate subtitle with edge, fallback to whisper")
 
         if subtitle_provider == "whisper" or subtitle_fallback:
             # 使用Whisper从音频生成字幕
@@ -286,20 +331,25 @@ def generate_podcast_subtitle(task_id, params, podcast_script, audio_file, subti
                 logger.error("failed to generate subtitle with whisper")
                 return ""
 
-        # 生成完整的播客文本用于字幕校正
-        full_podcast_text = ""
-        for i, turn in enumerate(podcast_script):
-            full_podcast_text += f"说话人1: {turn.speaker_1}\n"
-            full_podcast_text += f"说话人2: {turn.speaker_2}\n"
+        # 如果使用Edge TTS生成的字幕，跳过校正步骤，因为字幕已经从脚本生成
+        if subtitle_provider == "edge" and not subtitle_fallback:
+            logger.info("skipping subtitle correction for edge-generated subtitles")
+            enhanced_subtitle_path = subtitle_path
+        else:
+            # 生成完整的播客文本用于字幕校正
+            full_podcast_text = ""
+            for i, turn in enumerate(podcast_script):
+                full_podcast_text += f"说话人1: {turn.speaker_1}\n"
+                full_podcast_text += f"说话人2: {turn.speaker_2}\n"
 
-        # 校正字幕
-        logger.info("\n\n## correcting podcast subtitle")
-        subtitle.correct(subtitle_file=subtitle_path, video_script=full_podcast_text)
+            # 校正字幕
+            logger.info("\n\n## correcting podcast subtitle")
+            subtitle.correct(subtitle_file=subtitle_path, video_script=full_podcast_text)
 
-        # 增强播客字幕：添加说话人标识
-        enhanced_subtitle_path = enhance_podcast_subtitle(
-            subtitle_path, podcast_script, task_id
-        )
+            # 增强播客字幕：添加说话人标识
+            enhanced_subtitle_path = enhance_podcast_subtitle(
+                subtitle_path, podcast_script, task_id
+            )
 
         subtitle_lines = subtitle.file_to_subtitles(enhanced_subtitle_path)
         if not subtitle_lines:

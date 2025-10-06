@@ -451,6 +451,10 @@ def generate_podcast_script(article_text: str, language: str = "") -> List[Podca
     替代原有的generate_script函数
     """
     from app.models.schema import PodcastScript
+    from app.config import config
+
+    # 获取配置中的最大对话轮数
+    max_turns = config.app.get("podcast", {}).get("max_dialogue_turns", 6)
 
     # 根据语言参数选择提示语言
     if language and language.lower().startswith("en"):
@@ -466,6 +470,7 @@ Convert the following article into a natural and engaging two-person podcast dia
    - A tends to ask questions and guide, B tends to explain and go deeper
    - Each person's speech should be 2-4 sentences long
    - Cover the core viewpoints and key information from the article
+   - Generate exactly {max_turns} rounds of dialogue
 
 2. Language Style:
    - Conversational, natural, and fluent
@@ -512,6 +517,7 @@ Note:
    - A偏向提问和引导，B偏向解释和深入
    - 每人发言控制在2-4句话内
    - 对话要覆盖文章的核心观点和关键信息
+   - 生成恰好{max_turns}轮对话
 
 2. 语言风格：
    - 口语化、自然流畅

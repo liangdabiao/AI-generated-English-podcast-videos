@@ -214,11 +214,10 @@ api_key = ""
 hide_log = false
 
 [app.podcast]
-# 播客相关配置
 default_speaker_1_voice = "zh-CN-XiaoxiaoNeural-Female"
 default_speaker_2_voice = "zh-CN-YunxiNeural-Male"
-podcast_dialogue_style = "conversational"  # 对话风格
-max_dialogue_turns = 10  # 最大对话轮数
-min_article_length = 100  # 最小文章长度
-max_article_length = 50000  # 最大文章长度
-enable_podcast_mode = true  # 启用播客模式
+podcast_dialogue_style = "conversational"
+max_dialogue_turns = 1
+min_article_length = 50
+max_article_length = 50000
+enable_podcast_mode = true
