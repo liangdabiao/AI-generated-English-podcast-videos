@@ -367,21 +367,22 @@ Generate a script for a video, depending on the subject of the video.
 
 
 def generate_terms(video_subject: str, video_script: str, amount: int = 5) -> List[str]:
-    prompt = f"""
+    prompt = f'''
 # Role: Video Search Terms Generator
 
 ## Goals:
-Generate {amount} search terms for stock videos, depending on the subject of a video.
+Generate {amount} core search terms for stock videos that are most relevant to the subject and content of the video.
 
 ## Constrains:
-1. the search terms are to be returned as a json-array of strings.
-2. each search term should consist of 1-3 words, always add the main subject of the video.
-3. you must only return the json-array of strings. you must not return anything else. you must not return the script.
-4. the search terms must be related to the subject of the video.
-5. reply with english search terms only.
+1. The search terms are to be returned as a json-array of strings.
+2. Each search term should consist of 1-3 words, focusing on the most important concepts, objects, or ideas from the video content.
+3. You must only return the json-array of strings. You must not return anything else. You must not return the script.
+4. The search terms must be directly related to the core subject of the video, not common words or phrases.
+5. Reply with English search terms only.
+6. Avoid using common words that don't carry specific meaning related to the video subject.
 
 ## Output Example:
-["search term 1", "search term 2", "search term 3","search term 4","search term 5"]
+["sustainable energy", "renewable resources", "climate change", "green technology", "carbon footprint"]
 
 ## Context:
 ### Video Subject
@@ -391,7 +392,7 @@ Generate {amount} search terms for stock videos, depending on the subject of a v
 {video_script}
 
 Please note that you must use English for generating video search terms; Chinese is not accepted.
-""".strip()
+'''.strip()
 
     logger.info(f"subject: {video_subject}")
 
@@ -606,24 +607,66 @@ def generate_terms_from_podcast(podcast_script: List[PodcastScript], amount: int
         for dialogue in podcast_script
     ])
 
-    prompt = f"""
-# Role: 关键词提取器
+    prompt = f'''
+# Role: 播客核心关键词提取器
 
 ## 任务：
-从以下播客对话内容中提取 {amount} 个关键词，用于视频素材匹配。
+从以下播客对话内容中提取 {amount} 个最能反映内容核心主题的关键词，用于视频素材匹配。
 
 ## 播客内容：
 {all_text}
 
+## 提取要求：
+1. 选择与播客主题直接相关的核心概念、技术、话题或重要对象
+2. 避免选择无意义的常用词，如 "about"、"have"、"you"、"heard"、"Hey" 等
+3. 每个关键词可以是单个词或由2-3个词组成的短语
+4. 确保选择的关键词能够准确反映播客讨论的主要内容
+
 ## 输出要求：
-返回JSON格式的关键词列表：
-["关键词1", "关键词2", "关键词3", ...]
-"""
+返回JSON格式的关键词列表，使用英文表达：
+["keyword1", "keyword2", "keyword3", ...]
+'''.strip()
 
     response = _generate_response(prompt)
     try:
+        # 清理响应文本，提取JSON部分
+        response = response.strip()
+        if response.startswith("```json"):
+            response = response[7:]
+        if response.endswith("```"):
+            response = response[:-3]
+            
         keywords = json.loads(response)
-        return keywords[:amount]
+        
+        # 过滤关键词，移除常见无意义词汇
+        common_words = set(["about", "have", "you", "heard", "Hey", "the", "a", "an", "and", "or", "but", "is", "are"])
+        filtered_keywords = []
+        
+        for keyword in keywords:
+            # 检查关键词或关键词中的单词是否在常见词列表中
+            words = keyword.lower().split()
+            if not any(word in common_words for word in words) and keyword.strip():
+                filtered_keywords.append(keyword)
+                
+        # 如果过滤后关键词不足，从原始关键词中补充
+        if len(filtered_keywords) < amount:
+            for keyword in keywords:
+                if keyword not in filtered_keywords:
+                    filtered_keywords.append(keyword)
+                if len(filtered_keywords) >= amount:
+                    break
+                    
+        return filtered_keywords[:amount]
     except:
-        # 如果JSON解析失败，使用简单分词
-        return all_text.split()[:amount]
+        # 如果JSON解析失败，先尝试进行更智能的分词和过滤
+        import re
+        
+        # 简单分词并过滤掉常见词
+        words = re.findall(r'\b\w+\b', all_text.lower())
+        filtered_words = [word for word in words if word not in common_words]
+        
+        # 如果过滤后有足够的词，返回这些词；否则返回原始分词结果
+        if len(filtered_words) >= amount:
+            return filtered_words[:amount]
+        else:
+            return words[:amount]

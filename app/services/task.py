@@ -271,7 +271,7 @@ def generate_podcast_subtitle(task_id, params, podcast_script, audio_file, subti
                         # 处理说话人1
                         if turn.speaker_1.strip():
                             speaker1_text = turn.speaker_1.strip()
-                            duration = max(len(speaker1_text) * 0.1, 2.0)  # 估算每个字符0.1秒，最少2秒
+                            duration = max(len(speaker1_text) * 0.07, 2.0)  # 估算每个字符0.07秒，最少2.0秒
                             start_time = current_time
                             end_time = current_time + duration
 
@@ -283,15 +283,15 @@ def generate_podcast_subtitle(task_id, params, podcast_script, audio_file, subti
 
                             f.write(f"{idx}\n")
                             f.write(f"{start_str} --> {end_str}\n")
-                            f.write(f"[说话人1] {speaker1_text}\n\n")
+                            f.write(f"A: {speaker1_text}\n\n")
 
                             idx += 1
-                            current_time = end_time + 1.0  # 添加1秒停顿
+                            current_time = end_time + 0.5  # 添加0.5秒停顿
 
                         # 处理说话人2
                         if turn.speaker_2.strip():
                             speaker2_text = turn.speaker_2.strip()
-                            duration = max(len(speaker2_text) * 0.1, 2.0)
+                            duration = max(len(speaker2_text) * 0.07, 2.0)
                             start_time = current_time
                             end_time = current_time + duration
 
@@ -302,10 +302,10 @@ def generate_podcast_subtitle(task_id, params, podcast_script, audio_file, subti
 
                             f.write(f"{idx}\n")
                             f.write(f"{start_str} --> {end_str}\n")
-                            f.write(f"[说话人2] {speaker2_text}\n\n")
+                            f.write(f"B: {speaker2_text}\n\n")
 
                             idx += 1
-                            current_time = end_time + 1.0
+                            current_time = end_time + 0.5
 
                 logger.info(f"basic podcast subtitle created successfully: {subtitle_path} with {idx-1} entries")
 
@@ -339,8 +339,8 @@ def generate_podcast_subtitle(task_id, params, podcast_script, audio_file, subti
             # 生成完整的播客文本用于字幕校正
             full_podcast_text = ""
             for i, turn in enumerate(podcast_script):
-                full_podcast_text += f"说话人1: {turn.speaker_1}\n"
-                full_podcast_text += f"说话人2: {turn.speaker_2}\n"
+                full_podcast_text += f"A: {turn.speaker_1}\n"
+                full_podcast_text += f"B: {turn.speaker_2}\n"
 
             # 校正字幕
             logger.info("\n\n## correcting podcast subtitle")
@@ -385,7 +385,7 @@ def enhance_podcast_subtitle(original_subtitle_path, podcast_script, task_id):
             detected_speaker = detect_speaker_from_text(text, podcast_script, script_index)
 
             if detected_speaker and detected_speaker != current_speaker:
-                enhanced_text = f"[{detected_speaker}] {text}"
+                enhanced_text = f"{detected_speaker}: {text}"
                 current_speaker = detected_speaker
 
             enhanced_lines.append((line_num, time_range, enhanced_text))
@@ -427,9 +427,9 @@ def detect_speaker_from_text(text, podcast_script, current_script_index):
         similarity_s2 = len(words_text.intersection(words_s2)) / max(len(words_text), 1)
 
         if similarity_s1 > similarity_s2 and similarity_s1 > 0.3:
-            return "说话人1"
+            return "A"
         elif similarity_s2 > similarity_s1 and similarity_s2 > 0.3:
-            return "说话人2"
+            return "B"
 
         return None
 
