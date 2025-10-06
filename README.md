@@ -11,7 +11,7 @@
 
 <h4>Web界面</h4>
 
-![](docs/webui.jpg)
+![](https://linux.do/uploads/default/original/4X/d/8/2/d825fb38c55355d65a543f92cf8d58c87f504c6d.png)
 
 <h4>API界面</h4>
 
